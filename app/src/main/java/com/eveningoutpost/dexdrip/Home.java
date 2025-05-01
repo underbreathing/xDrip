@@ -326,8 +326,6 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
 
     private TextView tvGlucoseTimer;
 
-    private Button reset;
-
 
     @Inject
     BaseShelf homeShelf;
@@ -429,17 +427,13 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         this.currentBgValueText = (TextView) findViewById(R.id.currentBgValueRealTime);
         this.bpmButton = (Button) findViewById(R.id.bpmButton);
         this.stepsButton = (Button) findViewById(R.id.walkButton);
-        this.pbGlucoseTimer = findViewById(R.id.pb_glucoseLastVal);
+        this.pbGlucoseTimer = findViewById(R.id.pbGlucoseLastVal);
         this.tvGlucoseTimer = findViewById(R.id.tvGlucoseLastTime);
-        this.reset = findViewById(R.id.btnResetGlucoseTimer);
 
         extraStatusLineText.setText("");
         dexbridgeBattery.setText("");
         parakeetBattery.setText("");
         sensorAge.setText("");
-        reset.setOnClickListener(v -> {
-            startGlucoseTimer();
-        });
 
         if (BgGraphBuilder.isXLargeTablet(getApplicationContext())) {
             this.currentBgValueText.setTextSize(100);
@@ -645,7 +639,7 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         super.onStart();
         if(isGlucoseTimerWasLaunched){
             Log.d("TIMER_TEST","timer was resumed");
-            resumeGlucoseTimer();
+            startGlucoseTimer();
         }
     }
 
@@ -657,27 +651,32 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
     }
 
     private int lastGlucoseTime = 0;
+
     private int lastGlucoseMaxTime;
+
+    private long startGlucoseTimeStamp;
 
     private final int glucoseTimerInterval = 100;
 
-    private int startGlucoseTime;
-
     private boolean isGlucoseTimerWasLaunched = false;
 
-    private final Runnable progressRunnable = new Runnable() {
+    private Runnable progressRunnable = null;
 
+    private int getLastGlucoseTime() {
+        return (int) (System.currentTimeMillis() - startGlucoseTimeStamp) / 1000;
+    }
+
+    private class ProgressRunnable implements Runnable{
         private int currentColor;
-        private int newColor;
 
         @Override
         public void run() {
 
-            lastGlucoseTime = (int) currentTimeSeconds() - startGlucoseTime;
+            lastGlucoseTime = getLastGlucoseTime();
 
+            int newColor;
             if (lastGlucoseTime >= lastGlucoseMaxTime) {
                 newColor = ContextCompat.getColor(getAppContext(), R.color.red);
-                ;
             } else if (lastGlucoseTime >= lastGlucoseMaxTime / 2) {
                 newColor = Color.YELLOW;
             } else {
@@ -697,37 +696,34 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
 
             JoH.runOnUiThreadDelayed(this, glucoseTimerInterval);
         }
-    };
-
-    private static long currentTimeSeconds() {
-        return System.currentTimeMillis() / 1000;
     }
 
-    private void startGlucoseTimer() {
-        stopGlucoseTimer(); // если уже шёл
-
+    private void initGlucoseTimer() {
         isGlucoseTimerWasLaunched = true;
+        progressRunnable = new ProgressRunnable();
         lastGlucoseMaxTime = pbGlucoseTimer.getMax();
-        startGlucoseTime = (int) currentTimeSeconds();
+        lastGlucoseTime = getLastGlucoseTime();
 
         pbGlucoseTimer.setProgress(lastGlucoseTime);
         tvGlucoseTimer.setText(formatTimeMMSS(lastGlucoseTime));
 
-        JoH.runOnUiThread(progressRunnable);
+        startGlucoseTimer();
     }
 
-    private void resumeGlucoseTimer(){
+    private void startGlucoseTimer() {
+        if (progressRunnable == null) return;
         JoH.runOnUiThread(progressRunnable);
     }
 
     // Остановка прогресса
     private void stopGlucoseTimer() {
+        if (progressRunnable == null) return;
         JoH.removeUiThreadRunnable(progressRunnable);
     }
 
-    private void removeGlucoseTimer(){
+    private void removeGlucoseTimer() {
         isGlucoseTimerWasLaunched = false;
-        JoH.removeUiThreadRunnable(progressRunnable);
+        stopGlucoseTimer();
     }
 
     @SuppressLint("DefaultLocale")
@@ -965,13 +961,9 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         // TODO Offer Choice? Reject calibrations under various circumstances
         // This should be wrapped up in a generic method
         processCalibrationNoUI(thisglucosenumber, thistimeoffset);
-        removeGlucoseTimer();
 
         textBloodGlucose.setVisibility(View.INVISIBLE);
         btnBloodGlucose.setVisibility(View.INVISIBLE);
-        pbGlucoseTimer.setVisibility(View.INVISIBLE);
-        tvGlucoseTimer.setVisibility(View.INVISIBLE);
-        reset.setVisibility(View.INVISIBLE);
 
         if (hideTreatmentButtonsIfAllDone()) {
             updateCurrentBgInfo("bg button");
@@ -1286,9 +1278,6 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
 
     private void hideAllTreatmentButtons() {
         textCarbohydrates.setVisibility(View.INVISIBLE);
-        pbGlucoseTimer.setVisibility(View.INVISIBLE);
-        reset.setVisibility(View.INVISIBLE);
-        tvGlucoseTimer.setVisibility(View.INVISIBLE);
         btnBloodGlucose.setVisibility(View.INVISIBLE);
         textBloodGlucose.setVisibility(View.INVISIBLE);
         btnApprove.setVisibility(View.INVISIBLE);
@@ -1410,7 +1399,6 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
     }
 
     private void promptTextInput_old() {
-
         if (recognitionRunning) return;
         recognitionRunning = true;
 
@@ -1633,7 +1621,6 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
             case "blood":
                 if (!glucoseset && (thisnumber > 0)) {
                     thisglucosenumber = thisnumber;
-                    startGlucoseTimer();
                     if (Pref.getString("units", "mgdl").equals("mgdl")) {
                         if (textBloodGlucose != null)
                             textBloodGlucose.setText(thisnumber + " mg/dl");
@@ -1647,9 +1634,6 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
                     if (textBloodGlucose != null) {
                         btnBloodGlucose.setVisibility(View.VISIBLE);
                         textBloodGlucose.setVisibility(View.VISIBLE);
-                        pbGlucoseTimer.setVisibility(View.VISIBLE);
-                        tvGlucoseTimer.setVisibility(View.VISIBLE);
-                        reset.setVisibility(View.VISIBLE);
                     }
 
                 } else {
@@ -2702,6 +2686,14 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
 
         //if (isG5Share) showcasemenu(SHOWCASE_G5FIRMWARE); // nov 2016 firmware warning resolved 15/12/2016
         //showcasemenu(1); // 3 dot menu
+
+        BgReading lastBgReading = BgReading.lastNoSenssor();
+        if(lastBgReading != null){
+            startGlucoseTimeStamp = lastBgReading.timestamp;
+            pbGlucoseTimer.setVisibility(View.VISIBLE);
+            tvGlucoseTimer.setVisibility(View.VISIBLE);
+            initGlucoseTimer();
+        }
     }
 
     private void updateCurrentBgInfoForWifiWixel(DexCollectionType collector, TextView notificationText) {

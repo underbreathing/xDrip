@@ -91,7 +91,7 @@ public class CircularProgressBar extends View {
         float usedStrokeWidth = Math.min(strokeWidth, autoStrokeWidth);
 
         float backgroundStrokeWidth = usedStrokeWidth * 0.4f;
-        float progressStrokeWidth = usedStrokeWidth;
+        float progressStrokeWidth = usedStrokeWidth * 0.8f;
 
         backgroundPaint.setStrokeWidth(backgroundStrokeWidth);
         progressPaint.setStrokeWidth(progressStrokeWidth);

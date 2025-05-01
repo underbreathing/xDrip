@@ -2688,7 +2688,7 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         //showcasemenu(1); // 3 dot menu
 
         BgReading lastBgReading = BgReading.lastNoSenssor();
-        if(lastBgReading != null){
+        if (lastBgReading != null) {
             startGlucoseTimeStamp = lastBgReading.timestamp;
             pbGlucoseTimer.setVisibility(View.VISIBLE);
             tvGlucoseTimer.setVisibility(View.VISIBLE);
